@@ -1,0 +1,26 @@
+{
+  "name": "bg-removal-cloud-function",
+  "version": "1.0.0",
+  "description": "Background removal service for Google Cloud Functions",
+  "main": "index.js",
+  "engines": {
+    "node": "18"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "@imgly/background-removal-node": "^1.4.5",
+    "sharp": "^0.34.3"
+  },
+  "scripts": {
+    "start": "functions-framework --target=removeBackground",
+    "dev": "functions-framework --target=removeBackground --port=8080",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "background-removal",
+    "cloud-functions",
+    "image-processing"
+  ],
+  "author": "Astral",
+  "license": "AGPL-3.0"
+}
