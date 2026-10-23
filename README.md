@@ -47,7 +47,7 @@ Deploy to Google Cloud Run Functions using the [gcloud CLI](https://cloud.google
 ```bash
 gcloud functions deploy removeBackground \
   --gen2 \
-  --runtime=nodejs18 \
+  --runtime=nodejs24 \
   --trigger-http \
   --allow-unauthenticated \
   --memory=2Gi \
