@@ -1,0 +1,112 @@
+name: Dependency security monitoring
+
+on:
+  schedule:
+    - cron: "23 8 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "**/package.json"
+      - "bun.lock"
+      - ".github/workflows/security.yml"
+      - ".github/scripts/security_report*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      findings: ${{ steps.report.outputs.findings }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - name: Test report validation
+        run: python .github/scripts/security_report.test.py
+      - name: Resolve Bun dependency ranges
+        run: bun install --lockfile-only --ignore-scripts
+      - name: Explain inventory scope
+        run: |
+          printf '%s\n' \
+            '## Inventory scope' \
+            'This repository has no committed Bun lockfile. The scan resolves package.json ranges into a fresh temporary resolution.' \
+            'It does not scan deployed artifacts or represent reproducible installed versions; do not commit the generated lockfile.' \
+            >> "$GITHUB_STEP_SUMMARY"
+      - name: Audit resolved Bun dependencies
+        id: bun
+        shell: bash
+        run: |
+          mkdir -p security-results
+          status=0
+          bun audit --json > security-results/bun.json 2> security-results/bun.log || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Validate scans and summarize advisory backlog
+        id: report
+        env:
+          BUN_EXIT: ${{ steps.bun.outputs.status }}
+        run: python .github/scripts/security_report.py --bun-exit "$BUN_EXIT"
+      - name: Preserve complete results, including scanner errors
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-security
+          path: security-results/
+          retention-days: 14
+          if-no-files-found: warn
+
+  backlog:
+    needs: audit
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: dependency-security
+          path: security-results
+      - name: Maintain one advisory backlog issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          FINDINGS: ${{ needs.audit.outputs.findings }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const title = '[Security] Dependency advisory backlog';
+            const marker = '<!-- dependency-security-monitor -->';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const summary = fs.readFileSync('security-results/summary.md', 'utf8');
+            const body = `${marker}\n${summary}\nLatest successful scan: ${run}\n\nSubscribe to this issue and enable Actions failure notifications. Scanner failures fail the workflow and do not clear this backlog.\n`;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo, state: 'all', creator: 'github-actions[bot]', per_page: 100
+            });
+            const issue = issues.find(i => !i.pull_request && i.title === title && i.body && i.body.includes(marker));
+            const fingerprint = summary.split('\n').find(line => line.startsWith('<!-- inventory-sha256: '));
+            const changed = issue && fingerprint && !issue.body.includes(fingerprint);
+            const state = Number(process.env.FINDINGS) > 0 ? 'open' : 'closed';
+            if (issue) {
+              await github.rest.issues.update({...context.repo, issue_number: issue.number, body, state});
+              if (changed) {
+                await github.rest.issues.createComment({
+                  ...context.repo, issue_number: issue.number,
+                  body: `Dependency advisory inventory changed. Latest successful scan: ${run}`
+                });
+              }
+            } else if (state === 'open') {
+              await github.rest.issues.create({...context.repo, title, body});
+            }
