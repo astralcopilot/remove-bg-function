@@ -28,6 +28,12 @@ class SecurityReportTest(unittest.TestCase):
         text = report.write_report(findings, self.directory.name)
         self.assertIn("**1 package/advisory matches**", text)
         self.assertIn("not that the application is vulnerability-free", text)
+        self.assertIn(
+            "This repository has no committed lockfile. This report scans a fresh "
+            "resolution of manifest ranges, not deployed artifacts or reproducible "
+            "installed versions.",
+            text,
+        )
 
     def test_scanner_errors_never_become_clean_results(self):
         for data, status in (({}, 1), ({"error": "rate limited"}, 1), ([], 0), ({}, 2)):

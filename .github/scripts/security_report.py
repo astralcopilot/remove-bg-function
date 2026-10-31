@@ -44,7 +44,9 @@ def write_report(findings, directory):
              f"**{len(findings)} package/advisory matches** (not unique CVEs or proven exploits).", "",
              "Includes development dependencies.", "",
              "Managed runtimes, OS/container packages and native mobile binaries are not "
-             "covered. A lockfile match does not prove what is deployed.", ""]
+             "covered. This repository has no committed lockfile. This report scans a "
+             "fresh resolution of manifest ranges, not deployed artifacts or reproducible "
+             "installed versions.", ""]
     for severity in priorities:
         count = sum(row[0] == severity for row in findings)
         if count:

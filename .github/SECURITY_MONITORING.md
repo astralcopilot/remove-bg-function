@@ -16,19 +16,19 @@ or execute application packages.
   schedule and Dependabot. Until then, only PR validation runs.
 - The initial rollout is **advisory-only**: existing findings do not block PRs.
   A green job means scanning completed, not zero vulnerabilities. Scanner/network
-  errors, malformed reports and skipped Python packages fail the job.
+  errors and malformed reports fail the job.
 - Scheduled/default-branch manual runs create or refresh one GitHub backlog issue.
   Subscribe to that issue and enable Actions failure notifications. Assign a human
   security owner to triage it. PRs have a read-only token and never write issues.
 - Full JSON and logs are kept as a workflow artifact for 14 days. The summary and
-  issue show the first 50 matches, prioritized by severity; Python is **unrated**,
-  not low priority. Counts are package/advisory matches, not unique CVEs.
-- Dependabot proposes weekly Bun and Actions updates with three open PRs
+  issue show the first 50 matches, prioritized by severity. Counts are
+  package/advisory matches, not unique CVEs.
+- Dependabot proposes weekly npm manifest and Actions updates with three open PRs
   per ecosystem. Nothing here enables auto-merge. GitHub dependency graph,
   Dependabot alerts and security updates must also be enabled in repository
   Settings → Security; a config file does not enable those settings.
-- Upgrade production-reachable packages first. Validate affected code paths,
-  lesson access/generation and mobile compatibility before deploying fixes.
+- Upgrade production-reachable packages first. Validate affected application
+  code paths before deploying fixes.
 
 ## Coverage boundaries
 
@@ -36,12 +36,9 @@ This is dependency monitoring, not a SIEM, exploit test or deployed-asset scan.
 It includes dev/build dependencies and does not prove production reachability.
 No student data, application secrets or runtime logs are read by this workflow.
 
-Node/Bun executable CVEs, managed Vercel/Trigger runtime patch versions, OS/native
-libraries in deployed containers, CocoaPods/Gradle and already-installed mobile
-binaries need separate inventory and scanning. Do not infer deployed versions
-from `engines.node` or a local executable. Capture deployed image digests and
-runtime patch versions before adding image/runtime gates. Rebuilding or
-redeploying is required to apply fixes to already-running workers and binaries.
+This workflow audits JavaScript dependency ranges only. It does not scan the
+deployed function artifact, operating-system packages, or platform runtime
+versions. Rebuild or redeploy the function to apply dependency fixes.
 
 ## Local verification
 
